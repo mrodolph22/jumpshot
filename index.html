@@ -1,0 +1,376 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jumpshot AI</title>
+  <style>
+    :root {
+      --bg-color: #f3f4f6;
+      --card-bg: #ffffff;
+      --primary-text: #000000;
+      --secondary-text: #6b7280;
+      --border-color: #e5e7eb;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+      --shadow-hover: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      --more-color: #059669;
+      --more-bg: #ecfdf5;
+      --less-color: #dc2626;
+      --less-bg: #fef2f2;
+      --active-red: #ef4444;
+      --btn-blue-start: #a3c4ff;
+      --btn-blue-end: #94b9ff;
+      --notable-border: #111827;
+      --muted-gold: #c5a059;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--primary-text);
+      line-height: 1.3;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      background: #fff;
+      border: 1px solid var(--border-color);
+      padding: 6px 12px;
+      text-transform: uppercase;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+
+    .btn-primary-gradient {
+      background: linear-gradient(135deg, var(--btn-blue-start) 0%, var(--btn-blue-end) 100%) !important;
+      color: #fff !important;
+      border: none !important;
+      font-weight: 900 !important;
+      letter-spacing: 1px !important;
+    }
+
+    .tab-container {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 12px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      justify-content: center;
+      border-bottom: 1px solid var(--border-color);
+      background: #fff;
+      padding: 0 16px;
+      width: 100%;
+    }
+
+    .tab-item {
+      background: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      padding: 8px 2px !important;
+      text-transform: capitalize !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      color: var(--secondary-text) !important;
+      position: relative;
+      white-space: nowrap;
+    }
+
+    .tab-item.active {
+      color: var(--primary-text) !important;
+    }
+
+    .tab-item.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background-color: var(--active-red);
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      min-height: 100vh;
+      padding: 0 12px;
+    }
+
+    header {
+      padding: 8px 0;
+      position: sticky;
+      top: 0;
+      background: var(--bg-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+
+    /* Standard Card: Used for player props and setup */
+    .card {
+      background: var(--card-bg);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      margin-bottom: 8px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 320px;
+      min-height: 120px; /* Ensure some base height uniformity */
+      border: 1px solid var(--border-color);
+    }
+
+    /* List Card: New style for Schedule/Games list */
+    .list-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .list-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
+      border-color: #d1d5db;
+      background-color: #fafafa;
+    }
+
+    .player-header {
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 9px;
+      border-bottom: 1px solid var(--border-color);
+      padding: 6px 8px;
+      letter-spacing: 0.4px;
+      /* background-color: #fff; */
+      color: var(--secondary-text);
+      white-space: nowrap;
+      position: relative;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+    }
+
+    .star-indicator {
+      color: var(--muted-gold);
+      font-size: 9px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 6px;
+      position: relative;
+    }
+
+    /* CSS Tooltip */
+    .star-indicator::before {
+      content: "Star indicates structural role stability within current market pricing.";
+      position: absolute;
+      bottom: 160%;
+      right: 0;
+      background: #111;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 6px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+      z-index: 50;
+      text-transform: none;
+      letter-spacing: 0;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .star-indicator:hover::before {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(4px);
+    }
+
+    .prop-line {
+      font-weight: 900;
+      font-size: 20px;
+      line-height: 1;
+      margin: 0;
+      color: #111;
+    }
+
+    .prop-label {
+      color: #6b7280;
+      text-transform: uppercase;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+    }
+
+    .prediction-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 900;
+      text-transform: uppercase;
+      font-size: 8px;
+    }
+
+    .prediction-more { background-color: var(--more-bg); color: var(--more-color); }
+    .prediction-less { background-color: var(--less-bg); color: var(--less-color); }
+
+    .odds-value {
+      font-weight: 700;
+      font-size: 10px;
+      color: var(--primary-text);
+    }
+
+    .label-tiny {
+      font-size: 7px;
+      color: var(--secondary-text);
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+    }
+
+    .market-section {
+      min-height: 48px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+      margin: 4px 0;
+      background-color: #fbfbfb;
+    }
+
+    .emr-row {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+    }
+
+    .line-type-row {
+      position: absolute;
+      bottom: 6px;
+      left: 6px;
+    }
+
+    .risk-tag {
+      font-size: 7.5px;
+      font-weight: 600;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .risk-lower { color: #059669; background: #ecfdf5; }
+    .risk-moderate { color: #4b5563; background: #f3f4f6; }
+    .risk-elevated { color: #b45309; background: #fffbeb; }
+    .risk-high { color: #dc2626; background: #fef2f2; }
+
+    .risk-disabled { 
+      color: #9ca3af; 
+      background: #f9fafb; 
+      font-style: italic; 
+      font-size: 7px; 
+      padding: 1px 4px;
+    }
+
+    .volatility-context {
+      padding: 4px 8px;
+      background-color: #fff;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      margin-bottom: 8px;
+      font-size: 8px;
+      color: var(--secondary-text);
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .prop-body {
+      padding: 4px 8px;
+      padding-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .team-group-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 12px;
+      row-gap: 12px;
+      align-items: stretch;
+    }
+
+    .team-column {
+      display: contents; /* Desktop: cards participate in parent grid */
+    }
+
+    .card-away { grid-column: 1; }
+    .card-home { grid-column: 2; }
+
+    @media (max-width: 600px) {
+      .team-group-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+      .team-column {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .card-away, .card-home {
+        grid-column: auto !important;
+        grid-row: auto !important;
+      }
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

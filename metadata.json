@@ -1,0 +1,5 @@
+{
+  "name": "Jumpshot AI",
+  "description": "A lightweight NBA player prop analysis app that uses AI to explain sportsbook market behavior, role stability, and variance behind player lines—built for clarity, speed, and education.",
+  "requestFramePermissions": []
+}
