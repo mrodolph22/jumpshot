@@ -825,11 +825,33 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
         {!marketLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="label-tiny">Sportsbook</span>
-                <select value={selectedBookmaker} onChange={(e) => setSelectedBookmaker(e.target.value)}>
-                  {currentBookmakers.map(b => <option key={b.key} value={b.key}>{b.title}</option>)}
-                </select>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <select 
+                    value={selectedBookmaker} 
+                    onChange={(e) => setSelectedBookmaker(e.target.value)}
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      color: '#111',
+                      padding: '0 16px 0 0',
+                      appearance: 'none',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    {currentBookmakers.map(b => <option key={b.key} value={b.key}>{b.title}</option>)}
+                  </select>
+                  <div style={{ position: 'absolute', right: 0, pointerEvents: 'none', opacity: 0.5, display: 'flex', alignItems: 'center' }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m6 9 6 6 6-6"/>
+                    </svg>
+                  </div>
+                </div>
               </div>
               <button 
                 onClick={handleGenerateInsights} 
