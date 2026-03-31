@@ -407,6 +407,12 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
         </div>
       </div>
 
+      <div style={{ textAlign: 'center', margin: '4px 0' }}>
+        <span style={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '3px' }}>
+          VS.
+        </span>
+      </div>
+
       <main style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* OPPONENT CONTEXT */}
         <section>
@@ -594,7 +600,17 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
               <select 
                 value={statType} 
                 onChange={(e) => setStatType(e.target.value)}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px', 
+                  borderRadius: '4px', 
+                  border: '1px solid #ddd',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  fontFamily: 'inherit',
+                  color: '#111',
+                  outline: 'none'
+                }}
               >
                 <option>Points</option>
                 <option>Rebounds</option>
@@ -613,7 +629,17 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                 step="0.5"
                 value={line} 
                 onChange={(e) => setLine(parseFloat(e.target.value))}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px', 
+                  borderRadius: '4px', 
+                  border: '1px solid #ddd',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  fontFamily: 'inherit',
+                  color: '#111',
+                  outline: 'none'
+                }}
               />
             </div>
           </div>
