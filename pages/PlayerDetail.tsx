@@ -351,7 +351,7 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
           {/* Stats Footer */}
           <div style={{ padding: '4px 12px', background: 'rgba(0,0,0,0.01)', textAlign: 'center' }}>
             <span style={{ fontSize: '8px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '1px' }}>
-              2025-26 Regular Season
+              2025-26 Regular Season Averages
             </span>
           </div>
         </div>
@@ -407,11 +407,13 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                     appearance: 'none'
                   }}
                 >
-                  {allTeams.map(team => (
-                    <option key={team.id} value={team.displayName}>
-                      {team.displayName}
-                    </option>
-                  ))}
+                  {allTeams
+                    .filter(team => normalizeTeamName(team.displayName) !== normalizeTeamName(teamName))
+                    .map(team => (
+                      <option key={team.id} value={team.displayName}>
+                        {team.displayName}
+                      </option>
+                    ))}
                 </select>
                 <div style={{ position: 'absolute', right: 0, pointerEvents: 'none', opacity: 0.4 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -480,11 +482,11 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                 <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
                   {opponent ? opponent.defensive_avg_defensive_rebounds.toFixed(1) : '0.0'}
                 </span>
-                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '2px' }}>
-                  #{opponent?.defensive_reboundsRank || '-'}/30
+                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                  Def Reb
                 </span>
-                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '1px' }}>
-                  Avg Def Reb
+                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '1px' }}>
+                  #{opponent?.defensive_reboundsRank || '-'}/30
                 </span>
               </div>
               <div style={{ 
@@ -498,11 +500,11 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                 <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
                   {opponent ? opponent.defensive_avg_blocks.toFixed(1) : '0.0'}
                 </span>
-                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '2px' }}>
-                  #{opponent?.blocksRank || '-'}/30
+                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                  Blocks
                 </span>
-                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '1px' }}>
-                  Avg Blocks
+                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '1px' }}>
+                  #{opponent?.blocksRank || '-'}/30
                 </span>
               </div>
               <div style={{ 
@@ -516,11 +518,11 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                 <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
                   {opponent ? opponent.defensive_avg_steals.toFixed(1) : '0.0'}
                 </span>
-                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '2px' }}>
-                  #{opponent?.stealsRank || '-'}/30
+                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                  Steals
                 </span>
-                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '1px' }}>
-                  Avg Steals
+                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '1px' }}>
+                  #{opponent?.stealsRank || '-'}/30
                 </span>
               </div>
             </div>
@@ -528,7 +530,7 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
             {/* Footer */}
             <div style={{ padding: '4px 12px', background: 'rgba(0,0,0,0.01)', textAlign: 'center' }}>
               <span style={{ fontSize: '8px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '1px' }}>
-                2025-26 Regular Season
+                2025-26 Regular Season Averages
               </span>
             </div>
           </div>
@@ -577,13 +579,43 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
 
         {/* AI OUTPUT */}
         {analysis && (
-          <section style={{ padding: '16px', background: '#111', color: '#fff', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: analysis.lean === 'MORE' ? '#4ade80' : '#f87171' }}>Lean: {analysis.lean}</span>
+          <section style={{ 
+            background: '#fff', 
+            borderRadius: '12px', 
+            boxShadow: 'var(--shadow)', 
+            display: 'flex',
+            flexDirection: 'column',
+            border: '1px solid var(--border-color)',
+            overflow: 'hidden'
+          }}>
+            <div style={{ 
+              padding: '12px',
+              borderBottom: '1px solid rgba(0,0,0,0.06)',
+              background: 'rgba(0,0,0,0.01)',
+              textAlign: 'center'
+            }}>
+              <span style={{ 
+                fontSize: '14px', 
+                fontWeight: '900', 
+                textTransform: 'uppercase', 
+                letterSpacing: '1px',
+                color: analysis.lean === 'MORE' ? '#10b981' : '#ef4444'
+              }}>
+                {line} {statType}: {analysis.lean}
+              </span>
             </div>
-            <p style={{ margin: 0, fontSize: '13px', fontWeight: '500', lineHeight: '1.4', opacity: 0.9 }}>
-              {analysis.reason}
-            </p>
+            <div style={{ padding: '16px' }}>
+              <p style={{ 
+                margin: 0, 
+                fontSize: '13px', 
+                fontWeight: '400', 
+                lineHeight: '1.5', 
+                color: '#111',
+                textAlign: 'center'
+              }}>
+                {analysis.reason}
+              </p>
+            </div>
           </section>
         )}
       </main>
