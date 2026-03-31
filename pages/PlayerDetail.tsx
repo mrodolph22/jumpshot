@@ -154,10 +154,32 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
           fetchPlayerStats(playerName, playerId),
           fetchOpponentContext(selectedOpponent.name, opponentTeam?.id)
         ]);
-        setStats(statsData);
+        setStats(statsData || {
+          points: 0,
+          rebounds: 0,
+          assists: 0,
+          blocks: 0,
+          steals: 0,
+          fgPercentage: 0,
+          ftPercentage: 0,
+          threePercentage: 0,
+          gamesPlayed: 0
+        });
         setOpponent(opponentData);
       } catch (err) {
         console.error("Error loading player data:", err);
+        // Set fallback stats to prevent infinite loading
+        setStats({
+          points: 0,
+          rebounds: 0,
+          assists: 0,
+          blocks: 0,
+          steals: 0,
+          fgPercentage: 0,
+          ftPercentage: 0,
+          threePercentage: 0,
+          gamesPlayed: 0
+        });
       } finally {
         setLoading(false);
       }
@@ -586,31 +608,39 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
             display: 'flex',
             flexDirection: 'column',
             border: '1px solid var(--border-color)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            marginBottom: '16px'
           }}>
-            <div style={{ 
+            <div className="player-header" style={{ 
+              display: 'flex', 
+              flexDirection: 'row',
               padding: '12px',
               borderBottom: '1px solid rgba(0,0,0,0.06)',
+              flexShrink: 0,
               background: 'rgba(0,0,0,0.01)',
-              textAlign: 'center'
+              gap: '8px',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '40px'
             }}>
               <span style={{ 
                 fontSize: '14px', 
-                fontWeight: '900', 
-                textTransform: 'uppercase', 
-                letterSpacing: '1px',
-                color: analysis.lean === 'MORE' ? '#10b981' : '#ef4444'
+                fontWeight: '800',
+                color: analysis.lean === 'MORE' ? 'var(--more-color)' : 'var(--less-color)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
               }}>
-                {line} {statType}: {analysis.lean}
+                {line} {statType.replace('player_', '').replace('_', ' ')}: {analysis.lean}
               </span>
             </div>
+            
             <div style={{ padding: '16px' }}>
               <p style={{ 
                 margin: 0, 
                 fontSize: '13px', 
                 fontWeight: '400', 
                 lineHeight: '1.5', 
-                color: '#111',
+                color: 'var(--secondary-text)',
                 textAlign: 'center'
               }}>
                 {analysis.reason}
