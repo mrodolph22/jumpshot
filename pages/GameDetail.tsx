@@ -40,6 +40,7 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
   const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
   const { data: currentMarketData, loading: marketLoading, error: marketError, refresh: refreshMarket, lastFetchTime } = useMarketData(apiKey, game.id, selectedMarket);
   const [selectedBookmaker, setSelectedBookmaker] = useState<string>('draftkings');
+  const [firstTeam, setFirstTeam] = useState<'away' | 'home'>('away');
   
   const [availableMarketsLoading, setAvailableMarketsLoading] = useState(false);
   const [insights, setInsights] = useState<PlayerInsight[] | null>(null);
@@ -779,11 +780,45 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
           gap: '8px'
         }}>
           {game.awayTeamData?.logo && (
-            <img src={game.awayTeamData.logo} alt="" style={{ width: '20px', height: '20px', objectFit: 'contain' }} referrerPolicy="no-referrer" />
+            <img 
+              src={game.awayTeamData.logo} 
+              alt="" 
+              style={{ width: '20px', height: '20px', objectFit: 'contain', cursor: 'pointer' }} 
+              onClick={() => setFirstTeam('away')}
+              referrerPolicy="no-referrer" 
+            />
           )}
-          <span>{game.away_team} <span style={{ color: '#9ca3af' }}>@</span> {game.home_team}</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span 
+              onClick={() => setFirstTeam('away')} 
+              style={{ 
+                cursor: 'pointer', 
+                color: firstTeam === 'away' ? '#000' : '#9ca3af',
+                transition: 'color 0.2s ease'
+              }}
+            >
+              {game.away_team}
+            </span>
+            <span style={{ color: '#9ca3af' }}>@</span>
+            <span 
+              onClick={() => setFirstTeam('home')} 
+              style={{ 
+                cursor: 'pointer', 
+                color: firstTeam === 'home' ? '#000' : '#9ca3af',
+                transition: 'color 0.2s ease'
+              }}
+            >
+              {game.home_team}
+            </span>
+          </span>
           {game.homeTeamData?.logo && (
-            <img src={game.homeTeamData.logo} alt="" style={{ width: '20px', height: '20px', objectFit: 'contain' }} referrerPolicy="no-referrer" />
+            <img 
+              src={game.homeTeamData.logo} 
+              alt="" 
+              style={{ width: '20px', height: '20px', objectFit: 'contain', cursor: 'pointer' }} 
+              onClick={() => setFirstTeam('home')}
+              referrerPolicy="no-referrer" 
+            />
           )}
         </h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -867,19 +902,39 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
             {marketError && <div className="label-tiny" style={{ color: '#dc2626', textAlign: 'center' }}>{marketError}</div>}
 
             <div className="team-group-grid">
-              <div className="team-column">
-                {awayPlayers.length === 0 && !marketLoading && (
-                   <div className="label-tiny" style={{ textAlign: 'center', padding: '10px', gridColumn: 1, gridRow: 1 }}>No lines</div>
-                )}
-                {awayPlayers.map((p, index) => renderPlayerCard(p, game.awayTeamData?.logo, 1, index + 1))}
-              </div>
+              {firstTeam === 'away' ? (
+                <>
+                  <div className="team-column">
+                    {awayPlayers.length === 0 && !marketLoading && (
+                       <div className="label-tiny" style={{ textAlign: 'center', padding: '10px', gridColumn: 1, gridRow: 1 }}>No lines</div>
+                    )}
+                    {awayPlayers.map((p, index) => renderPlayerCard(p, game.awayTeamData?.logo, 1, index + 1))}
+                  </div>
 
-              <div className="team-column">
-                {homePlayers.length === 0 && !marketLoading && (
-                   <div className="label-tiny" style={{ textAlign: 'center', padding: '10px', gridColumn: 2, gridRow: 1 }}>No lines</div>
-                )}
-                {homePlayers.map((p, index) => renderPlayerCard(p, game.homeTeamData?.logo, 2, index + 1))}
-              </div>
+                  <div className="team-column">
+                    {homePlayers.length === 0 && !marketLoading && (
+                       <div className="label-tiny" style={{ textAlign: 'center', padding: '10px', gridColumn: 2, gridRow: 1 }}>No lines</div>
+                    )}
+                    {homePlayers.map((p, index) => renderPlayerCard(p, game.homeTeamData?.logo, 2, index + 1))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="team-column">
+                    {homePlayers.length === 0 && !marketLoading && (
+                       <div className="label-tiny" style={{ textAlign: 'center', padding: '10px', gridColumn: 2, gridRow: 1 }}>No lines</div>
+                    )}
+                    {homePlayers.map((p, index) => renderPlayerCard(p, game.homeTeamData?.logo, 2, index + 1))}
+                  </div>
+
+                  <div className="team-column">
+                    {awayPlayers.length === 0 && !marketLoading && (
+                       <div className="label-tiny" style={{ textAlign: 'center', padding: '10px', gridColumn: 1, gridRow: 1 }}>No lines</div>
+                    )}
+                    {awayPlayers.map((p, index) => renderPlayerCard(p, game.awayTeamData?.logo, 1, index + 1))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

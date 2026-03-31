@@ -347,12 +347,21 @@
     @media (max-width: 600px) {
       .team-group-grid {
         grid-template-columns: 1fr;
-        gap: 16px;
+        gap: 20px;
+        justify-items: center;
       }
       .team-column {
         display: flex;
         flex-direction: column;
         gap: 12px;
+        align-items: center;
+        width: 100%;
+      }
+      .card {
+        max-width: 440px;
+        width: 92%;
+        margin-left: auto;
+        margin-right: auto;
       }
       .card-away, .card-home {
         grid-column: auto !important;
