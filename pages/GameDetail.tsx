@@ -26,6 +26,8 @@ interface GameDetailProps {
     statType?: string;
     line?: number;
     bookmakerName?: string;
+    bookmakerKey?: string;
+    gameId?: string;
   }) => void;
 }
 

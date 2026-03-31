@@ -40,8 +40,11 @@ export interface EspnTeamInfo {
 export const fetchEspnTeams = async (): Promise<EspnTeamInfo[]> => {
   try {
     const response = await fetch('https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams');
+    if (!response.ok) return [];
     const data = await response.json();
-    const teams = data.sports[0].leagues[0].teams;
+    
+    const teams = data?.sports?.[0]?.leagues?.[0]?.teams;
+    if (!teams || !Array.isArray(teams)) return [];
     
     return teams.map((t: any) => {
       const team = t.team;
@@ -66,6 +69,7 @@ export interface PlayerStats {
   blocks: number;
   steals: number;
   threes: number;
+  fgPercentage: number;
 }
 
 export const fetchPlayerStats = async (playerName: string, playerId?: string): Promise<PlayerStats> => {
@@ -78,7 +82,8 @@ export const fetchPlayerStats = async (playerName: string, playerId?: string): P
       assists: 0,
       blocks: 0,
       steals: 0,
-      threes: 0
+      threes: 0,
+      fgPercentage: 0
     };
 
     // Helper to extract from a categories array (v3 API structure)
@@ -110,6 +115,7 @@ export const fetchPlayerStats = async (playerName: string, playerId?: string): P
                   stats.threes = val; break;
                 case 'fieldGoalPct': 
                   // If it's a decimal (e.g. 0.392), convert to percentage (39.2)
+                  stats.fgPercentage = val < 1 ? val * 100 : val; 
                   break;
               }
             });
@@ -142,6 +148,7 @@ export const fetchPlayerStats = async (playerName: string, playerId?: string): P
               case 'avgFieldGoalPct':
               case 'fieldGoalPercentage':
               case 'avgFieldGoalPercentage':
+                stats.fgPercentage = s.value < 1 ? s.value * 100 : s.value; 
                 break;
             }
           });
@@ -195,6 +202,7 @@ export const fetchPlayerStats = async (playerName: string, playerId?: string): P
                 case 'avgFieldGoalPct':
                 case 'fieldGoalPercentage':
                 case 'avgFieldGoalPercentage':
+                  stats.fgPercentage = s.value < 1 ? s.value * 100 : s.value; 
                   break;
               }
             });
@@ -221,7 +229,8 @@ export const fetchPlayerStats = async (playerName: string, playerId?: string): P
     assists: (hash % 7) + 1 + (hash % 4) / 10,
     blocks: (hash % 3) + 0.2,
     steals: (hash % 3) + 0.5,
-    threes: (hash % 4) + 1.2
+    threes: (hash % 4) + 1.2,
+    fgPercentage: 45.5
   };
 };
 
@@ -338,27 +347,29 @@ export const fetchOpponentContext = async (teamName: string, teamId?: string): P
 
       // Fetch detailed statistics for the specific team
       const stats = await fetchEspnTeamStats(teamId, 2026);
-      if (stats && stats.categories) {
+      if (stats && Array.isArray(stats.categories)) {
         let fga = 90, fta = 20, to = 12, oreb = 10; // Defaults for pace calculation
 
         stats.categories.forEach((cat: any) => {
-          cat.stats.forEach((s: any) => {
-            switch (s.name) {
-              case 'avgDefensiveRebounds': 
-                context.defensive_avg_defensive_rebounds = s.value; 
-                break;
-              case 'avgBlocks': 
-                context.defensive_avg_blocks = s.value; 
-                break;
-              case 'avgSteals': 
-                context.defensive_avg_steals = s.value; 
-                break;
-              case 'avgFieldGoalsAttempted': fga = s.value; break;
-              case 'avgFreeThrowsAttempted': fta = s.value; break;
-              case 'avgTurnovers': to = s.value; break;
-              case 'avgOffensiveRebounds': oreb = s.value; break;
-            }
-          });
+          if (cat.stats && Array.isArray(cat.stats)) {
+            cat.stats.forEach((s: any) => {
+              switch (s.name) {
+                case 'avgDefensiveRebounds': 
+                  context.defensive_avg_defensive_rebounds = s.value; 
+                  break;
+                case 'avgBlocks': 
+                  context.defensive_avg_blocks = s.value; 
+                  break;
+                case 'avgSteals': 
+                  context.defensive_avg_steals = s.value; 
+                  break;
+                case 'avgFieldGoalsAttempted': fga = s.value; break;
+                case 'avgFreeThrowsAttempted': fta = s.value; break;
+                case 'avgTurnovers': to = s.value; break;
+                case 'avgOffensiveRebounds': oreb = s.value; break;
+              }
+            });
+          }
         });
 
         // Calculate Pace: FGA + 0.44 * FTA + TO - ORB

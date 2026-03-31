@@ -6,6 +6,7 @@ import ApiKeySetup from './pages/ApiKeySetup';
 import Games from './pages/Games';
 import GameDetail from './pages/GameDetail';
 import PlayerDetail from './pages/PlayerDetail';
+import ErrorBoundary from './components/ErrorBoundary';
 
 interface PlayerContext {
   playerName: string;
@@ -56,9 +57,11 @@ const Router: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ApiKeyProvider>
-      <div className="container">
-        <Router />
-      </div>
+      <ErrorBoundary>
+        <div className="container">
+          <Router />
+        </div>
+      </ErrorBoundary>
     </ApiKeyProvider>
   );
 };

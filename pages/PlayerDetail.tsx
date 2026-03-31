@@ -6,6 +6,7 @@ import { useApiKey } from '../context/ApiKeyContext';
 import { fetchMarketWithCache } from '../hooks/useMarketData';
 import { PLAYER_MARKETS } from '../types';
 import { getMarketKeyFromLabel } from '../utils/marketUtils';
+import { normalizePlayerName } from '../services/espnRosterService';
 
 interface PlayerDetailProps {
   playerName: string;
@@ -59,23 +60,43 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
   }, [playerName, teamName, initialStatType, initialLine, bookmakerKey, gameId]);
 
   useEffect(() => {
+    console.log("[PlayerDetail] Mounted with props:", { 
+      playerName, 
+      teamName, 
+      initialOpponentTeamName, 
+      playerId, 
+      gameId, 
+      bookmakerKey 
+    });
+  }, []);
+
+  useEffect(() => {
     const loadTeams = async () => {
-      const teams = await fetchEspnTeams();
-      const sortedTeams = teams.sort((a, b) => a.displayName.localeCompare(b.displayName));
-      setAllTeams(sortedTeams);
-      
-      // Ensure initial name matches one of the ESPN display names
-      const initialMatch = sortedTeams.find(t => 
-        normalizeTeamName(t.displayName) === normalizeTeamName(selectedOpponent.name) ||
-        normalizeTeamName(t.name) === normalizeTeamName(selectedOpponent.name) ||
-        normalizeTeamName(t.abbreviation) === normalizeTeamName(selectedOpponent.name)
-      );
-      
-      if (initialMatch) {
-        setSelectedOpponent({
-          name: initialMatch.displayName,
-          logo: initialMatch.logo
-        });
+      console.log("[PlayerDetail] Loading teams...");
+      try {
+        const teams = await fetchEspnTeams();
+        console.log("[PlayerDetail] Teams loaded:", teams.length);
+        const sortedTeams = teams.sort((a, b) => a.displayName.localeCompare(b.displayName));
+        setAllTeams(sortedTeams);
+        
+        // Ensure initial name matches one of the ESPN display names
+        const initialMatch = sortedTeams.find(t => 
+          normalizeTeamName(t.displayName) === normalizeTeamName(selectedOpponent.name) ||
+          normalizeTeamName(t.name) === normalizeTeamName(selectedOpponent.name) ||
+          normalizeTeamName(t.abbreviation) === normalizeTeamName(selectedOpponent.name)
+        );
+        
+        if (initialMatch) {
+          console.log("[PlayerDetail] Found initial opponent match:", initialMatch.displayName);
+          setSelectedOpponent({
+            name: initialMatch.displayName,
+            logo: initialMatch.logo
+          });
+        } else {
+          console.warn("[PlayerDetail] No initial opponent match found for:", selectedOpponent.name);
+        }
+      } catch (err) {
+        console.error("[PlayerDetail] Error in loadTeams:", err);
       }
     };
     loadTeams();
@@ -100,20 +121,22 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
             .then(data => {
               if (!data) return;
               const bookmaker = data.bookmakers.find(b => b.key === bookmakerKey);
-              if (!bookmaker) {
-                console.log("Bookmaker not found for market:", marketKey);
+              if (!bookmaker || !bookmaker.markets) {
+                console.log("Bookmaker or markets not found for market:", marketKey);
                 return;
               }
               
               const market = bookmaker.markets[0];
-              if (!market) {
-                console.log("Market not found for bookmaker:", bookmakerKey, "Market:", marketKey);
+              if (!market || !market.outcomes) {
+                console.log("Market or outcomes not found for bookmaker:", bookmakerKey, "Market:", marketKey);
                 return;
               }
 
               // Find this player in the outcomes
+              const normalizedSearchName = normalizePlayerName(playerName);
               const outcome = market.outcomes.find(o => 
-                o.description === playerName || o.name === playerName
+                normalizePlayerName(o.description) === normalizedSearchName || 
+                normalizePlayerName(o.name) === normalizedSearchName
               );
 
               if (outcome && outcome.point !== undefined) {
@@ -147,27 +170,31 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
 
   useEffect(() => {
     const loadData = async () => {
+      console.log("[PlayerDetail] loadData triggered", { playerName, opponentName: selectedOpponent.name, allTeamsCount: allTeams.length });
       setLoading(true);
       try {
         const opponentTeam = allTeams.find(t => t.displayName === selectedOpponent.name);
+        console.log("[PlayerDetail] Fetching stats and opponent context...", { playerId, opponentTeamId: opponentTeam?.id });
+        
         const [statsData, opponentData] = await Promise.all([
           fetchPlayerStats(playerName, playerId),
           fetchOpponentContext(selectedOpponent.name, opponentTeam?.id)
         ]);
+        
+        console.log("[PlayerDetail] Data fetched successfully:", { hasStats: !!statsData, hasOpponent: !!opponentData });
+        
         setStats(statsData || {
           points: 0,
           rebounds: 0,
           assists: 0,
           blocks: 0,
           steals: 0,
-          fgPercentage: 0,
-          ftPercentage: 0,
-          threePercentage: 0,
-          gamesPlayed: 0
+          threes: 0,
+          fgPercentage: 0
         });
         setOpponent(opponentData);
       } catch (err) {
-        console.error("Error loading player data:", err);
+        console.error("[PlayerDetail] Error loading player data:", err);
         // Set fallback stats to prevent infinite loading
         setStats({
           points: 0,
@@ -175,12 +202,11 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
           assists: 0,
           blocks: 0,
           steals: 0,
-          fgPercentage: 0,
-          ftPercentage: 0,
-          threePercentage: 0,
-          gamesPlayed: 0
+          threes: 0,
+          fgPercentage: 0
         });
       } finally {
+        console.log("[PlayerDetail] Setting loading to false");
         setLoading(false);
       }
     };
@@ -210,6 +236,8 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
       setAnalyzing(false);
     }
   };
+
+  console.log("[PlayerDetail] Rendering", { loading, hasStats: !!stats, hasOpponent: !!opponent });
 
   if (loading && !stats) {
     return (
