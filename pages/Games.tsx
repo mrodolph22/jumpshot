@@ -50,6 +50,22 @@ const Games: React.FC<GamesProps> = ({ onSelectGame }) => {
       <header>
         <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>NBA Game Schedule</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button 
+            onClick={clearKey}
+            style={{ 
+              backgroundColor: 'transparent', 
+              color: '#9ca3af', 
+              fontSize: '10px', 
+              fontWeight: 'bold', 
+              border: '1px solid #e5e7eb',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              textTransform: 'uppercase',
+              cursor: 'pointer'
+            }}
+          >
+            Reset Key
+          </button>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
             <button 
               onClick={() => refresh()} 
@@ -71,7 +87,6 @@ const Games: React.FC<GamesProps> = ({ onSelectGame }) => {
               </span>
             )}
           </div>
-          <button onClick={clearKey} style={{ color: '#9ca3af', border: 'none', boxShadow: 'none' }}>Logout</button>
         </div>
       </header>
       <main style={{ paddingBottom: '40px', marginTop: '20px' }}>

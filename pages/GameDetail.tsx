@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Game, OddsResponse, Bookmaker, Market, Outcome, PrimaryPlayerProp, PlayerOffer, EventMarket } from '../types';
+import { Game, OddsResponse, Bookmaker, Market, Outcome, PrimaryPlayerProp, PlayerOffer, EventMarket, PLAYER_MARKETS } from '../types';
 import { fetchAvailableMarkets } from '../api/oddsApi';
 import { useApiKey } from '../context/ApiKeyContext';
 import { useMarketData, fetchMarketWithCache } from '../hooks/useMarketData';
@@ -10,19 +10,30 @@ import { evaluateParlayRole } from '../utils/parlayFit';
 import { determineLineType } from '../utils/lineTypeCalculator';
 import { fetchNbaRosters, normalizePlayerName, PlayerRosterInfo } from '../services/espnRosterService';
 import { normalizeTeamName } from '../services/espnService';
+import { renderMarketLabelClean } from '../utils/marketUtils';
 
 interface GameDetailProps {
   game: Game;
   onBack: () => void;
-  onSelectPlayer: (player: { playerName: string; teamName: string; teamLogo?: string; opponentTeamName: string; opponentLogo?: string; playerPhoto?: string }) => void;
+  onSelectPlayer: (player: { 
+    playerName: string; 
+    teamName: string; 
+    teamLogo?: string; 
+    opponentTeamName: string; 
+    opponentLogo?: string; 
+    playerPhoto?: string; 
+    playerId?: string;
+    statType?: string;
+    line?: number;
+    bookmakerName?: string;
+  }) => void;
 }
 
-const PLAYER_MARKETS = ['player_points', 'player_assists', 'player_rebounds', 'player_blocks', 'player_steals', 'player_threes'];
-
 const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer }) => {
-  const { apiKey, clearKey } = useApiKey();
+  const { apiKey } = useApiKey();
   const [selectedMarket, setSelectedMarket] = useState<string>('player_points');
   const [rosterMap, setRosterMap] = useState<Record<string, PlayerRosterInfo>>({});
+  const [isRosterLoading, setIsRosterLoading] = useState(true);
   
   const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
   const { data: currentMarketData, loading: marketLoading, error: marketError, refresh: refreshMarket, lastFetchTime } = useMarketData(apiKey, game.id, selectedMarket);
@@ -39,7 +50,19 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
   const [showJustUpdated, setShowJustUpdated] = useState(false);
 
   useEffect(() => {
-    fetchNbaRosters().then(setRosterMap);
+    setIsRosterLoading(true);
+    fetchNbaRosters().then(map => {
+      setRosterMap(map);
+      setIsRosterLoading(false);
+      const keys = Object.keys(map);
+      console.log(`[GameDetail] Roster map loaded with ${keys.length} players.`);
+      if (keys.length > 0) {
+        console.log("[GameDetail] Sample roster keys:", keys.slice(0, 10));
+      }
+    }).catch(err => {
+      console.error("[GameDetail] Failed to load rosters:", err);
+      setIsRosterLoading(false);
+    });
   }, []);
 
   // Cooldown and "time ago" timer
@@ -221,12 +244,24 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
     Object.keys(rawDataMap).forEach(key => {
       const { team, lines: linesMap } = rawDataMap[key];
       const lines = Object.keys(linesMap).map(Number);
+      
+      // Prioritize selected bookmaker's line
       let primaryLine = lines[0];
-      let maxCount = -1;
-      lines.forEach(line => {
-        const count = linesMap[line].filter(o => o.overPrice && o.underPrice).length;
-        if (count > maxCount) { maxCount = count; primaryLine = line; }
-      });
+      const lineWithSelectedBookie = lines.find(line => 
+        linesMap[line].some(o => o.bookmaker === selectedBookmaker && o.overPrice !== undefined && o.underPrice !== undefined)
+      );
+      
+      if (lineWithSelectedBookie !== undefined) {
+        primaryLine = lineWithSelectedBookie;
+      } else {
+        // Fallback to consensus line
+        let maxCount = -1;
+        lines.forEach(line => {
+          const count = linesMap[line].filter(o => o.overPrice && o.underPrice).length;
+          if (count > maxCount) { maxCount = count; primaryLine = line; }
+        });
+      }
+      
       const [playerName, marketKey] = key.split('|');
       
       const offersAtPrimary = linesMap[primaryLine];
@@ -303,7 +338,7 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
     });
 
     return results.sort((a, b) => a.playerName.localeCompare(b.playerName));
-  }, [currentMarketData, selectedBookmaker]);
+  }, [currentMarketData, selectedBookmaker, rosterMap]);
 
   const { awayPlayers, homePlayers } = useMemo(() => {
     const away: PrimaryPlayerProp[] = [];
@@ -318,10 +353,24 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
 
       // STEP 4: FINAL FALLBACK (CONTROLLED)
       if (!resolvedTeam) {
-        resolvedTeam = away.length <= home.length ? game.away_team : game.home_team;
+        // Try to see if the player name contains either team name (unlikely but possible for some reason)
+        const nPlayer = prop.playerName.toLowerCase();
+        const nHomeTeam = game.home_team.toLowerCase();
+        const nAwayTeam = game.away_team.toLowerCase();
+        
+        if (nPlayer.includes(nHomeTeam) || nHomeTeam.includes(nPlayer)) {
+          resolvedTeam = game.home_team;
+        } else if (nPlayer.includes(nAwayTeam) || nAwayTeam.includes(nPlayer)) {
+          resolvedTeam = game.away_team;
+        } else {
+          // Balance fallback
+          resolvedTeam = away.length <= home.length ? game.away_team : game.home_team;
+        }
+        
         console.warn("Fallback team assignment used", {
           playerName: prop.playerName,
-          assignedTeam: resolvedTeam
+          assignedTeam: resolvedTeam,
+          reason: "No match in roster map or odds API"
         });
       }
 
@@ -402,10 +451,6 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
   }, [currentMarketData, selectedMarket, primaryProps, selectedBookmaker]);
 
   const renderMarketLabel = (key: string) => key.replace('player_', '').replace('_', ' ').toUpperCase();
-  const renderMarketLabelClean = (key: string) => {
-    const words = key.replace('player_', '').split('_');
-    return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  };
 
   const formatRiskLevel = (level: string) => {
     return level.charAt(0).toUpperCase() + level.slice(1).toLowerCase();
@@ -437,6 +482,39 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
 
     const strongerSide = getStrongerSide();
 
+    // 1. INPUTS
+    const consensus = prop.consensusStrength; // 'Low' | 'Medium' | 'High'
+    const insightText = playerInsight?.insight || "";
+    const lineTypeRaw = prop.lineType; // 'Volume Line' | 'Efficiency Line' | undefined
+    const lineType = lineTypeRaw === 'Volume Line' ? 'volume' : lineTypeRaw === 'Efficiency Line' ? 'efficiency' : 'standard';
+
+    // 2. BASE SCORE
+    let baseScore = 40; // Default for LOW
+    if (consensus === 'High') baseScore = 75;
+    else if (consensus === 'Medium') baseScore = 60;
+
+    // Adjust based on insight text if available
+    const isStrong = insightText.toLowerCase().includes("strong");
+    if (isStrong && consensus !== 'High') {
+      baseScore = 75; // Upgrade to High if insight says strong
+    }
+
+    // 3. APPLY LINE TYPE ADJUSTMENT
+    let finalScore = baseScore;
+    if (lineType === "volume") finalScore += 10;
+    else if (lineType === "efficiency") finalScore -= 10;
+
+    // 4. FINAL COLOR
+    let finalColor = '#ef4444'; // RED (default)
+    let finalBg = 'rgba(239, 68, 68, 0.1)';
+    if (finalScore >= 70) {
+      finalColor = '#22c55e'; // GREEN
+      finalBg = 'rgba(34, 197, 94, 0.1)';
+    } else if (finalScore >= 50) {
+      finalColor = '#eab308'; // YELLOW
+      finalBg = 'rgba(234, 179, 8, 0.1)';
+    }
+
     return (
       <div 
         key={prop.playerName} 
@@ -457,7 +535,13 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
             teamLogo,
             opponentTeamName,
             opponentLogo,
-            playerPhoto
+            playerPhoto,
+            playerId: rosterInfo?.playerId,
+            statType: renderMarketLabelClean(selectedMarket),
+            line: prop.line,
+            bookmakerName: offer?.bookmakerTitle,
+            bookmakerKey: selectedBookmaker,
+            gameId: game.id
           });
         }}
         style={{ 
@@ -473,36 +557,36 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
           cursor: 'pointer'
         }}
       >
-        {/* 1. HEADER (FIXED HEIGHT) */}
+        {/* 1. HEADER */}
         <div className="player-header" style={{ 
-          height: '52px',
           display: 'flex', 
           flexDirection: 'column',
-          padding: '8px 12px',
+          padding: '10px 12px',
           borderBottom: '1px solid rgba(0,0,0,0.06)',
           flexShrink: 0,
           background: 'rgba(0,0,0,0.01)',
-          gap: '2px'
+          gap: '8px',
+          alignItems: 'center'
         }}>
           {/* Row 1: Team (Left) */}
           <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
               {teamLogo && (
                 <img 
                   src={teamLogo} 
                   alt="" 
-                  style={{ width: '18px', height: '18px', objectFit: 'contain', opacity: 0.9, flexShrink: 0 }} 
+                  style={{ width: '14px', height: '14px', objectFit: 'contain', opacity: 0.8, flexShrink: 0 }} 
                   referrerPolicy="no-referrer" 
                 />
               )}
-              <span style={{ fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', opacity: 0.6, whiteSpace: 'nowrap', letterSpacing: '0.5px' }}>
+              <span style={{ fontSize: '9px', fontWeight: '600', textTransform: 'uppercase', opacity: 0.5, whiteSpace: 'nowrap', letterSpacing: '0.5px' }}>
                 {prop.team}
               </span>
             </div>
           </div>
 
-          {/* Row 2: Player Photo and Name (Centered) */}
-          <div style={{ textAlign: 'center', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          {/* Row 2: Player Photo and Name (Stacked) */}
+          <div style={{ textAlign: 'center', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
             {(() => {
               const rosterInfo = rosterMap[normalizePlayerName(prop.playerName)] || 
                                  (prop.fuzzyMatch ? rosterMap[prop.fuzzyMatch] : null);
@@ -510,19 +594,24 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
                 <img 
                   src={rosterInfo.photoUrl} 
                   alt="" 
-                  style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover', background: '#f0f0f0' }} 
+                  style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', background: '#f0f0f0', border: '2px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }} 
                   referrerPolicy="no-referrer"
                 />
-              ) : null;
+              ) : (
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#9ca3af', fontWeight: 'bold' }}>
+                  {prop.playerName.split(' ').map(n => n[0]).join('')}
+                </div>
+              );
             })()}
             <span style={{ 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '900', 
               textTransform: 'uppercase', 
-              letterSpacing: '0.5px',
+              letterSpacing: '0.3px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              width: '100%'
             }}>
               {prop.playerName}
             </span>
@@ -545,14 +634,14 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
             ) : showAdvancedData ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className={`prediction-badge ${prop.marketLean === 'MORE' ? 'prediction-more' : 'prediction-less'}`} style={{ width: '38px', textAlign: 'center', padding: '1px 0', fontSize: '8px', fontWeight: '900' }}>
+                  <span className="prediction-badge" style={{ width: '38px', textAlign: 'center', padding: '1px 0', fontSize: '8px', fontWeight: '900', background: finalBg, color: finalColor }}>
                     {prop.marketLean}
                   </span>
-                  <span style={{ fontWeight: '900', fontSize: '13px', color: prop.marketLean === 'MORE' ? 'var(--more-color)' : 'var(--less-color)' }}>
+                  <span style={{ fontWeight: '900', fontSize: '13px', color: finalColor }}>
                     {favoredPrice}
                   </span>
                 </div>
-                <div style={{ fontSize: '8px', fontWeight: '700', color: prop.marketLean === 'MORE' ? 'var(--more-color)' : 'var(--less-color)', opacity: 0.7 }}>
+                <div style={{ fontSize: '8px', fontWeight: '700', color: '#4b5563', opacity: 0.7 }}>
                   {favoredPrice !== undefined && (favoredPrice < 0 ? `risk $${Math.abs(favoredPrice)} to win $100` : `win $${Math.abs(favoredPrice)} on $100`)}
                 </div>
               </div>
@@ -715,7 +804,6 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
               </span>
             )}
           </div>
-          <button onClick={clearKey} style={{ border: 'none', color: '#9ca3af', boxShadow: 'none', background: 'transparent', padding: '4px 8px' }}>Logout</button>
         </div>
       </header>
 
@@ -747,7 +835,7 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
                 className={analyzing ? "" : "btn-primary-gradient"}
                 style={{ fontSize: '9px', padding: '8px 16px' }}
               >
-                {analyzing ? 'Analyzing Structure...' : 'Generate Insights'}
+                {analyzing ? 'Analyzing Structure...' : 'ANALYZE'}
               </button>
             </div>
 
@@ -774,6 +862,71 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
         {marketLoading && !currentMarketData && (
           <div className="label-tiny" style={{ textAlign: 'center', padding: '40px' }}>Loading Market Data...</div>
         )}
+
+        {/* Glossary Section */}
+        <div style={{ 
+          marginTop: '40px', 
+          padding: '0', 
+          border: '1px solid rgba(0,0,0,0.08)',
+          borderRadius: '8px',
+          background: '#fff',
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+        }}>
+          <div style={{ padding: '20px 16px 0' }}>
+            <h3 style={{ 
+              fontSize: '10px', 
+              fontWeight: '900', 
+              textTransform: 'uppercase', 
+              letterSpacing: '1px', 
+              color: '#9ca3af',
+              marginBottom: '8px'
+            }}>
+              Glossary
+            </h3>
+            <div style={{ height: '1px', background: '#f3f4f6', marginBottom: '20px' }}></div>
+          </div>
+          
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+            gap: '24px',
+            padding: '0 16px 24px'
+          }}>
+            {[
+              { term: 'STANDARD LINE', def: 'Baseline projection based on historical averages and market consensus.' },
+              { term: 'VOLUME LINE', def: 'Projection driven by high usage or shot attempts, indicating high activity levels.' },
+              { term: 'EFFICIENCY LINE', def: 'Relies on high conversion rates or performance quality rather than raw volume.' },
+              { term: 'CONSENSUS', def: 'The level of agreement across multiple sportsbooks regarding the line and odds.' },
+              { term: 'ANCHOR ROLE', def: 'Primary offensive or defensive driver with high, stable usage.' },
+              { term: 'SUPPORT ROLE', def: 'Contributes based on team flow, often filling gaps left by stars.' },
+              { term: 'VOLATILE ROLE', def: 'High-variance performance, often dependent on specific matchups or hot streaks.' },
+              { term: 'RISK', def: 'Calculated Expected Margin of Risk (EMR) based on line volatility and juice.' },
+              { term: 'LINE VOLATILITY', def: 'The degree to which a betting line fluctuates based on market action or news.' },
+              { term: 'JUICE', def: 'The commission charged by the sportsbook (vig), reflected in the odds.' },
+              { term: 'CONSISTENT ROLE & USAGE', def: 'Indicates a player whose minutes and shot attempts remain stable over time.' }
+            ].map((item, idx) => (
+              <div key={idx} style={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                <div style={{ 
+                  fontSize: '9px', 
+                  fontWeight: '900', 
+                  color: '#111827',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px'
+                }}>
+                  {item.term}
+                </div>
+                <div style={{ fontSize: '10px', color: '#6b7280', lineHeight: '1.5', fontWeight: '500' }}>
+                  {item.def}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
     </div>
   );

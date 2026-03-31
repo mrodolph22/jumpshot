@@ -2,6 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { fetchPlayerStats, fetchOpponentContext, fetchEspnTeams, PlayerStats, OpponentContext, EspnTeamInfo, normalizeTeamName } from '../services/espnService';
 import { analyzePlayerPerformance, PlayerAnalysis } from '../services/geminiService';
+import { useApiKey } from '../context/ApiKeyContext';
+import { fetchMarketWithCache } from '../hooks/useMarketData';
+import { PLAYER_MARKETS } from '../types';
+import { getMarketKeyFromLabel } from '../utils/marketUtils';
 
 interface PlayerDetailProps {
   playerName: string;
@@ -10,6 +14,12 @@ interface PlayerDetailProps {
   opponentTeamName: string;
   opponentLogo?: string;
   playerPhoto?: string;
+  playerId?: string;
+  statType?: string;
+  line?: number;
+  bookmakerName?: string;
+  bookmakerKey?: string;
+  gameId?: string;
   onBack: () => void;
 }
 
@@ -18,10 +28,17 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
   teamName, 
   teamLogo, 
   playerPhoto,
+  playerId,
   opponentTeamName: initialOpponentTeamName, 
   opponentLogo: initialOpponentLogo, 
+  statType: initialStatType,
+  line: initialLine,
+  bookmakerName,
+  bookmakerKey,
+  gameId,
   onBack 
 }) => {
+  const { apiKey } = useApiKey();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [opponent, setOpponent] = useState<OpponentContext | null>(null);
   const [allTeams, setAllTeams] = useState<EspnTeamInfo[]>([]);
@@ -31,10 +48,15 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
   });
   const [loading, setLoading] = useState(true);
   
-  const [statType, setStatType] = useState('Points');
-  const [line, setLine] = useState<number>(20.5);
+  const [statType, setStatType] = useState(initialStatType || 'Points');
+  const [line, setLine] = useState<number>(initialLine || 20.5);
+  const [allLines, setAllLines] = useState<Record<string, number>>({});
   const [analysis, setAnalysis] = useState<PlayerAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+
+  useEffect(() => {
+    console.log("PlayerDetail Props:", { playerName, teamName, initialStatType, initialLine, bookmakerKey, gameId });
+  }, [playerName, teamName, initialStatType, initialLine, bookmakerKey, gameId]);
 
   useEffect(() => {
     const loadTeams = async () => {
@@ -60,12 +82,77 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
   }, []); // Only run on mount
 
   useEffect(() => {
+    if (!apiKey || !gameId || !bookmakerKey) return;
+
+    const fetchAllLines = async () => {
+      const linesMap: Record<string, number> = {};
+      
+      // Seed with initial line
+      if (initialStatType && initialLine) {
+        linesMap[initialStatType] = initialLine;
+      }
+
+      try {
+        console.log("Fetching all lines for:", playerName, "Game:", gameId, "Bookmaker:", bookmakerKey);
+        // Fetch all markets for this game to populate the lines map
+        const fetchPromises = PLAYER_MARKETS.map(marketKey => 
+          fetchMarketWithCache(apiKey, gameId, marketKey)
+            .then(data => {
+              if (!data) return;
+              const bookmaker = data.bookmakers.find(b => b.key === bookmakerKey);
+              if (!bookmaker) {
+                console.log("Bookmaker not found for market:", marketKey);
+                return;
+              }
+              
+              const market = bookmaker.markets[0];
+              if (!market) {
+                console.log("Market not found for bookmaker:", bookmakerKey, "Market:", marketKey);
+                return;
+              }
+
+              // Find this player in the outcomes
+              const outcome = market.outcomes.find(o => 
+                o.description === playerName || o.name === playerName
+              );
+
+              if (outcome && outcome.point !== undefined) {
+                const label = marketKey.replace('player_', '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                console.log("Found line for", label, ":", outcome.point);
+                linesMap[label] = outcome.point;
+              } else {
+                console.log("Outcome not found for player:", playerName, "in market:", marketKey);
+              }
+            })
+            .catch((err) => {
+              console.error("Error fetching market:", marketKey, err);
+            })
+        );
+
+        await Promise.all(fetchPromises);
+        console.log("All lines fetched:", linesMap);
+        setAllLines(prev => ({ ...prev, ...linesMap }));
+      } catch (err) {
+        console.error("Error fetching all lines:", err);
+      }
+    };
+
+    fetchAllLines();
+  }, [apiKey, gameId, bookmakerKey, playerName, initialStatType, initialLine]);
+
+  // Update line when statType changes
+  useEffect(() => {
+    setLine(allLines[statType] ?? 0);
+  }, [statType, allLines]);
+
+  useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
+        const opponentTeam = allTeams.find(t => t.displayName === selectedOpponent.name);
         const [statsData, opponentData] = await Promise.all([
-          fetchPlayerStats(playerName),
-          fetchOpponentContext(selectedOpponent.name)
+          fetchPlayerStats(playerName, playerId),
+          fetchOpponentContext(selectedOpponent.name, opponentTeam?.id)
         ]);
         setStats(statsData);
         setOpponent(opponentData);
@@ -76,7 +163,7 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
       }
     };
     loadData();
-  }, [playerName, selectedOpponent.name]);
+  }, [playerName, selectedOpponent.name, allTeams]);
 
   const handleOpponentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const team = allTeams.find(t => t.displayName === e.target.value);
@@ -133,14 +220,14 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
           overflow: 'hidden'
         }}>
           <div className="player-header" style={{ 
-            height: '52px',
             display: 'flex', 
             flexDirection: 'column',
-            padding: '8px 12px',
+            padding: '12px',
             borderBottom: '1px solid rgba(0,0,0,0.06)',
             flexShrink: 0,
             background: 'rgba(0,0,0,0.01)',
-            gap: '2px'
+            gap: '8px',
+            alignItems: 'center'
           }}>
             {/* Row 1: Team (Left) */}
             <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', width: '100%' }}>
@@ -159,18 +246,18 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
               </div>
             </div>
 
-            {/* Row 2: Player Photo and Name (Centered) */}
-            <div style={{ textAlign: 'center', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            {/* Row 2: Player Photo and Name (Stacked) */}
+            <div style={{ textAlign: 'center', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               {playerPhoto && (
                 <img 
                   src={playerPhoto} 
                   alt="" 
-                  style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', background: '#f0f0f0' }} 
+                  style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', background: '#f0f0f0', border: '2px solid #fff', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} 
                   referrerPolicy="no-referrer"
                 />
               )}
               <span style={{ 
-                fontSize: '14px', 
+                fontSize: '18px', 
                 fontWeight: '900', 
                 textTransform: 'uppercase', 
                 letterSpacing: '0.5px',
@@ -192,11 +279,11 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
               textTransform: 'uppercase', 
               letterSpacing: '0.5px' 
             }}>
-              SG • Starter
+              SG • Starter {stats && `• ${stats.fgPercentage.toFixed(1)}% FG`}
             </span>
           </div>
 
-          {/* Stats Row */}
+          {/* Stats Grid */}
           <div style={{ 
             display: 'grid', 
             gridTemplateColumns: 'repeat(3, 1fr)', 
@@ -204,23 +291,61 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
             background: 'rgba(0,0,0,0.06)',
             borderBottom: '1px solid rgba(0,0,0,0.06)'
           }}>
-            {stats && Object.entries(stats).map(([key, value]) => (
-              <div key={key} style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                padding: '8px 4px', 
-                background: '#fff'
-              }}>
-                <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
-                  {(value as number).toFixed(1)}
-                </span>
-                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
-                  {key}
-                </span>
-              </div>
-            ))}
+            {stats && (
+              <>
+                {/* Row 1 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px', background: '#fff' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                    {stats.points.toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                    PTS
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px', background: '#fff' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                    {stats.rebounds.toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                    REB
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px', background: '#fff' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                    {stats.assists.toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                    AST
+                  </span>
+                </div>
+
+                {/* Row 2 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px', background: '#fff' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                    {stats.blocks.toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                    BLK
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px', background: '#fff' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                    {stats.steals.toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                    STL
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '8px 4px', background: '#fff' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                    {stats.threes.toFixed(1)}
+                  </span>
+                  <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '2px' }}>
+                    3PM
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Stats Footer */}
@@ -296,20 +421,7 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
               </div>
             </div>
 
-            {/* Subtext Row */}
-            <div style={{ padding: '8px 12px', textAlign: 'center', background: '#fff', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-              <span style={{ 
-                fontSize: '10px', 
-                fontWeight: '700', 
-                color: '#9ca3af', 
-                textTransform: 'uppercase', 
-                letterSpacing: '0.5px' 
-              }}>
-                Defensive Efficiency • Pace
-              </span>
-            </div>
-
-            {/* Stats Row */}
+            {/* Stats Row 1: Pace & Defense */}
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: 'repeat(2, 1fr)', 
@@ -349,8 +461,75 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
               </div>
             </div>
 
+            {/* Stats Row 2: Defensive Averages */}
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(3, 1fr)', 
+              gap: '1px', 
+              background: 'rgba(0,0,0,0.06)',
+              borderBottom: '1px solid rgba(0,0,0,0.06)'
+            }}>
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                padding: '8px 4px', 
+                background: '#fff'
+              }}>
+                <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                  {opponent ? opponent.defensive_avg_defensive_rebounds.toFixed(1) : '0.0'}
+                </span>
+                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '2px' }}>
+                  #{opponent?.defensive_reboundsRank || '-'}/30
+                </span>
+                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '1px' }}>
+                  Avg Def Reb
+                </span>
+              </div>
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                padding: '8px 4px', 
+                background: '#fff'
+              }}>
+                <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                  {opponent ? opponent.defensive_avg_blocks.toFixed(1) : '0.0'}
+                </span>
+                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '2px' }}>
+                  #{opponent?.blocksRank || '-'}/30
+                </span>
+                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '1px' }}>
+                  Avg Blocks
+                </span>
+              </div>
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                padding: '8px 4px', 
+                background: '#fff'
+              }}>
+                <span style={{ fontSize: '13px', fontWeight: '900', color: '#111', lineHeight: '1' }}>
+                  {opponent ? opponent.defensive_avg_steals.toFixed(1) : '0.0'}
+                </span>
+                <span style={{ fontSize: '8px', fontWeight: '800', color: '#9ca3af', marginTop: '2px' }}>
+                  #{opponent?.stealsRank || '-'}/30
+                </span>
+                <span style={{ fontSize: '7px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', marginTop: '1px' }}>
+                  Avg Steals
+                </span>
+              </div>
+            </div>
+
             {/* Footer */}
-            <div style={{ padding: '4px 12px', background: 'rgba(0,0,0,0.01)', textAlign: 'center', minHeight: '16px' }}>
+            <div style={{ padding: '4px 12px', background: 'rgba(0,0,0,0.01)', textAlign: 'center' }}>
+              <span style={{ fontSize: '8px', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '1px' }}>
+                2025-26 Regular Season
+              </span>
             </div>
           </div>
         </section>
@@ -374,7 +553,9 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
               </select>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: '9px', fontWeight: '800', textTransform: 'uppercase', marginBottom: '4px', opacity: 0.5 }}>Line</label>
+              <label style={{ display: 'block', fontSize: '9px', fontWeight: '800', textTransform: 'uppercase', marginBottom: '4px', opacity: 0.5 }}>
+                Line
+              </label>
               <input 
                 type="number" 
                 step="0.5"

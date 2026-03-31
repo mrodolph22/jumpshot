@@ -78,3 +78,12 @@ export enum ViewState {
   GAME_DETAIL = 'game_detail',
   PLAYER_DETAIL = 'player_detail'
 }
+
+export const PLAYER_MARKETS = [
+  'player_points', 
+  'player_assists', 
+  'player_rebounds', 
+  'player_blocks', 
+  'player_steals', 
+  'player_threes'
+];

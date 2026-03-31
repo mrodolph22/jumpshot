@@ -14,6 +14,12 @@ interface PlayerContext {
   opponentTeamName: string;
   opponentLogo?: string;
   playerPhoto?: string;
+  playerId?: string;
+  statType?: string;
+  line?: number;
+  bookmakerName?: string;
+  bookmakerKey?: string;
+  gameId?: string;
 }
 
 const Router: React.FC = () => {
