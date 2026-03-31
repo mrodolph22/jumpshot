@@ -13,7 +13,7 @@ const ApiKeySetup: React.FC = () => {
   }, [inputValue, saveKey]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', padding: '16px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: '16px' }}>
       <div className="card" style={{ width: '100%', maxWidth: '440px', padding: '60px 40px', textAlign: 'center' }}>
         <h1 style={{ fontSize: '32px', fontWeight: '900', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '-1.5px', color: '#111' }}>
           JUMPSHOT AI

@@ -54,12 +54,38 @@ const Router: React.FC = () => {
   return <Games onSelectGame={(game) => setSelectedGame(game)} />;
 };
 
+const Footer: React.FC = () => {
+  return (
+    <footer style={{ 
+      padding: '40px 16px 60px', 
+      textAlign: 'center', 
+      color: '#9ca3af', 
+      fontSize: '12px',
+      lineHeight: '1.6',
+      borderTop: '1px solid #e5e7eb',
+      marginTop: '40px'
+    }}>
+      <div style={{ marginBottom: '8px', fontWeight: '600' }}>
+        © 2026 JumpShot AI. All rights reserved.
+      </div>
+      <div style={{ maxWidth: '440px', margin: '0 auto', opacity: 0.8 }}>
+        This application is for educational and informational purposes only. 
+        It does not constitute financial or betting advice. 
+        Always conduct your own research before making any decisions.
+      </div>
+    </footer>
+  );
+};
+
 const App: React.FC = () => {
   return (
     <ApiKeyProvider>
       <ErrorBoundary>
-        <div className="container">
-          <Router />
+        <div className="container" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+          <div style={{ flex: 1 }}>
+            <Router />
+          </div>
+          <Footer />
         </div>
       </ErrorBoundary>
     </ApiKeyProvider>
