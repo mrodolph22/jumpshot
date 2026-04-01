@@ -593,17 +593,14 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                 onChange={(e) => setStatType(e.target.value)}
                 style={{ 
                   width: '100%', 
-                  padding: '12px 8px', 
-                  borderRadius: '6px', 
-                  border: '1px solid #e5e7eb',
-                  fontSize: '20px',
-                  fontWeight: '900',
+                  padding: '8px', 
+                  borderRadius: '4px', 
+                  border: '1px solid #ddd',
+                  fontSize: '12px',
+                  fontWeight: '600',
                   fontFamily: 'inherit',
                   color: '#111',
-                  outline: 'none',
-                  lineHeight: '1',
-                  textAlign: 'center',
-                  background: '#fbfbfb'
+                  outline: 'none'
                 }}
               >
                 <option>Points</option>
@@ -625,17 +622,14 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                 onChange={(e) => setLine(parseFloat(e.target.value))}
                 style={{ 
                   width: '100%', 
-                  padding: '12px 8px', 
-                  borderRadius: '6px', 
-                  border: '1px solid #e5e7eb',
-                  fontSize: '20px',
-                  fontWeight: '900',
+                  padding: '8px', 
+                  borderRadius: '4px', 
+                  border: '1px solid #ddd',
+                  fontSize: '12px',
+                  fontWeight: '600',
                   fontFamily: 'inherit',
                   color: '#111',
-                  outline: 'none',
-                  lineHeight: '1',
-                  textAlign: 'center',
-                  background: '#fbfbfb'
+                  outline: 'none'
                 }}
               />
             </div>
