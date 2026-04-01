@@ -71,11 +71,12 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     const loadTeams = async () => {
-      console.log("[PlayerDetail] Loading teams...");
       try {
         const teams = await fetchEspnTeams();
-        console.log("[PlayerDetail] Teams loaded:", teams.length);
+        if (controller.signal.aborted) return;
+        
         const sortedTeams = teams.sort((a, b) => a.displayName.localeCompare(b.displayName));
         setAllTeams(sortedTeams);
         
@@ -87,22 +88,21 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
         );
         
         if (initialMatch) {
-          console.log("[PlayerDetail] Found initial opponent match:", initialMatch.displayName);
           setSelectedOpponent({
             name: initialMatch.displayName,
             logo: initialMatch.logo
           });
-        } else {
-          console.warn("[PlayerDetail] No initial opponent match found for:", selectedOpponent.name);
         }
       } catch (err) {
         console.error("[PlayerDetail] Error in loadTeams:", err);
       }
     };
     loadTeams();
+    return () => controller.abort();
   }, []); // Only run on mount
 
   useEffect(() => {
+    const controller = new AbortController();
     if (!apiKey || !gameId || !bookmakerKey) return;
 
     const fetchAllLines = async () => {
@@ -114,21 +114,18 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
       }
 
       try {
-        console.log("Fetching all lines for:", playerName, "Game:", gameId, "Bookmaker:", bookmakerKey);
         // Fetch all markets for this game to populate the lines map
         const fetchPromises = PLAYER_MARKETS.map(marketKey => 
           fetchMarketWithCache(apiKey, gameId, marketKey)
             .then(data => {
-              if (!data) return;
+              if (!data || controller.signal.aborted) return;
               const bookmaker = data.bookmakers.find(b => b.key === bookmakerKey);
               if (!bookmaker || !bookmaker.markets) {
-                console.log("Bookmaker or markets not found for market:", marketKey);
                 return;
               }
               
               const market = bookmaker.markets[0];
               if (!market || !market.outcomes) {
-                console.log("Market or outcomes not found for bookmaker:", bookmakerKey, "Market:", marketKey);
                 return;
               }
 
@@ -141,10 +138,7 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
 
               if (outcome && outcome.point !== undefined) {
                 const label = marketKey.replace('player_', '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                console.log("Found line for", label, ":", outcome.point);
                 linesMap[label] = outcome.point;
-              } else {
-                console.log("Outcome not found for player:", playerName, "in market:", marketKey);
               }
             })
             .catch((err) => {
@@ -153,14 +147,16 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
         );
 
         await Promise.all(fetchPromises);
-        console.log("All lines fetched:", linesMap);
-        setAllLines(prev => ({ ...prev, ...linesMap }));
+        if (!controller.signal.aborted) {
+          setAllLines(prev => ({ ...prev, ...linesMap }));
+        }
       } catch (err) {
         console.error("Error fetching all lines:", err);
       }
     };
 
     fetchAllLines();
+    return () => controller.abort();
   }, [apiKey, gameId, bookmakerKey, playerName, initialStatType, initialLine]);
 
   // Update line when statType changes
@@ -170,18 +166,14 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
 
   useEffect(() => {
     const loadData = async () => {
-      console.log("[PlayerDetail] loadData triggered", { playerName, opponentName: selectedOpponent.name, allTeamsCount: allTeams.length });
       setLoading(true);
       try {
         const opponentTeam = allTeams.find(t => t.displayName === selectedOpponent.name);
-        console.log("[PlayerDetail] Fetching stats and opponent context...", { playerId, opponentTeamId: opponentTeam?.id });
         
         const [statsData, opponentData] = await Promise.all([
           fetchPlayerStats(playerName, playerId),
           fetchOpponentContext(selectedOpponent.name, opponentTeam?.id)
         ]);
-        
-        console.log("[PlayerDetail] Data fetched successfully:", { hasStats: !!statsData, hasOpponent: !!opponentData });
         
         setStats(statsData || {
           points: 0,
@@ -206,7 +198,6 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
           fgPercentage: 0
         });
       } finally {
-        console.log("[PlayerDetail] Setting loading to false");
         setLoading(false);
       }
     };
@@ -237,7 +228,7 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
     }
   };
 
-  console.log("[PlayerDetail] Rendering", { loading, hasStats: !!stats, hasOpponent: !!opponent });
+  // console.log("[PlayerDetail] Rendering", { loading, hasStats: !!stats, hasOpponent: !!opponent });
 
   if (loading && !stats) {
     return (
@@ -407,9 +398,9 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
         </div>
       </div>
 
-      <div style={{ textAlign: 'center', margin: '4px 0' }}>
-        <span style={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '3px' }}>
-          VS.
+      <div style={{ textAlign: 'center', margin: '8px 0' }}>
+        <span style={{ fontSize: '16px', fontWeight: '900', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '4px' }}>
+          VS
         </span>
       </div>
 
@@ -602,14 +593,17 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                 onChange={(e) => setStatType(e.target.value)}
                 style={{ 
                   width: '100%', 
-                  padding: '8px', 
-                  borderRadius: '4px', 
-                  border: '1px solid #ddd',
-                  fontSize: '12px',
-                  fontWeight: '600',
+                  padding: '12px 8px', 
+                  borderRadius: '6px', 
+                  border: '1px solid #e5e7eb',
+                  fontSize: '20px',
+                  fontWeight: '900',
                   fontFamily: 'inherit',
                   color: '#111',
-                  outline: 'none'
+                  outline: 'none',
+                  lineHeight: '1',
+                  textAlign: 'center',
+                  background: '#fbfbfb'
                 }}
               >
                 <option>Points</option>
@@ -631,14 +625,17 @@ const PlayerDetail: React.FC<PlayerDetailProps> = ({
                 onChange={(e) => setLine(parseFloat(e.target.value))}
                 style={{ 
                   width: '100%', 
-                  padding: '8px', 
-                  borderRadius: '4px', 
-                  border: '1px solid #ddd',
-                  fontSize: '12px',
-                  fontWeight: '600',
+                  padding: '12px 8px', 
+                  borderRadius: '6px', 
+                  border: '1px solid #e5e7eb',
+                  fontSize: '20px',
+                  fontWeight: '900',
                   fontFamily: 'inherit',
                   color: '#111',
-                  outline: 'none'
+                  outline: 'none',
+                  lineHeight: '1',
+                  textAlign: 'center',
+                  background: '#fbfbfb'
                 }}
               />
             </div>

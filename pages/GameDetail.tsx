@@ -53,19 +53,18 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
   const [showJustUpdated, setShowJustUpdated] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     setIsRosterLoading(true);
     fetchNbaRosters().then(map => {
+      if (controller.signal.aborted) return;
       setRosterMap(map);
       setIsRosterLoading(false);
-      const keys = Object.keys(map);
-      console.log(`[GameDetail] Roster map loaded with ${keys.length} players.`);
-      if (keys.length > 0) {
-        console.log("[GameDetail] Sample roster keys:", keys.slice(0, 10));
-      }
     }).catch(err => {
+      if (controller.signal.aborted) return;
       console.error("[GameDetail] Failed to load rosters:", err);
       setIsRosterLoading(false);
     });
+    return () => controller.abort();
   }, []);
 
   // Cooldown and "time ago" timer
@@ -182,6 +181,7 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
     if (!data) return [];
 
     const rawDataMap: Record<string, { team?: string; fuzzyMatch?: string; lines: Record<number, PlayerOffer[]> }> = {};
+    const rosterKeys = Object.keys(rosterMap);
 
     // Build rawDataMap
     data.bookmakers.forEach((bookie) => {
@@ -204,7 +204,7 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
 
             // STEP 2: FUZZY MATCH
             if (!resolvedTeam) {
-              fuzzyMatchKey = Object.keys(rosterMap).find(name => 
+              fuzzyMatchKey = rosterKeys.find(name => 
                 name.includes(normalizedName) || normalizedName.includes(name)
               );
               if (fuzzyMatchKey) {
@@ -352,11 +352,10 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
 
     primaryProps.forEach(prop => {
       let resolvedTeam = prop.team;
-      const normalizedName = normalizePlayerName(prop.playerName);
 
       // STEP 4: FINAL FALLBACK (CONTROLLED)
       if (!resolvedTeam) {
-        // Try to see if the player name contains either team name (unlikely but possible for some reason)
+        // Try to see if the player name contains either team name
         const nPlayer = prop.playerName.toLowerCase();
         const nHomeTeam = game.home_team.toLowerCase();
         const nAwayTeam = game.away_team.toLowerCase();
@@ -369,25 +368,7 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
           // Balance fallback
           resolvedTeam = away.length <= home.length ? game.away_team : game.home_team;
         }
-        
-        console.warn("Fallback team assignment used", {
-          playerName: prop.playerName,
-          assignedTeam: resolvedTeam,
-          reason: "No match in roster map or odds API"
-        });
       }
-
-      // ENHANCED DEBUG LOGGING
-      console.warn("Player team resolution debug", {
-        playerName: prop.playerName,
-        normalizedName,
-        espnMatch: !!rosterMap[normalizedName],
-        fuzzyMatched: !!prop.fuzzyMatch,
-        oddsTeam: prop.team || null, // Original resolved team before step 4
-        finalResolvedTeam: resolvedTeam,
-        home: game.home_team,
-        away: game.away_team
-      });
 
       const nPropTeam = normalizeTeamName(resolvedTeam);
       if (nPropTeam === nHome) {
@@ -395,8 +376,6 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
       } else if (nPropTeam === nAway) {
         away.push({ ...prop, team: resolvedTeam });
       } else {
-        // This should technically not happen anymore with Step 4, 
-        // but we keep it for safety in case nPropTeam doesn't match either game team
         if (away.length <= home.length) {
           away.push({ ...prop, team: resolvedTeam });
         } else {
@@ -404,6 +383,10 @@ const GameDetail: React.FC<GameDetailProps> = ({ game, onBack, onSelectPlayer })
         }
       }
     });
+
+    // Sort alphabetically by player name
+    away.sort((a, b) => a.playerName.localeCompare(b.playerName));
+    home.sort((a, b) => a.playerName.localeCompare(b.playerName));
 
     return { awayPlayers: away, homePlayers: home };
   }, [primaryProps, game, rosterMap]);

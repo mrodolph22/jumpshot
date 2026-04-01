@@ -282,35 +282,48 @@ const TEAM_DEFENSIVE_STATS: Record<string, { dr: number, stl: number, blk: numbe
 
 // Cache for league-wide defensive stats to avoid redundant API calls
 let leagueStatsCache: { id: string, dr: number, stl: number, blk: number }[] | null = null;
+let leagueStatsPromise: Promise<{ id: string, dr: number, stl: number, blk: number }[]> | null = null;
 
 const getLeagueDefensiveStats = async (): Promise<{ id: string, dr: number, stl: number, blk: number }[]> => {
   if (leagueStatsCache) return leagueStatsCache;
+  if (leagueStatsPromise) return leagueStatsPromise;
 
-  console.log("[ESPN API] Fetching league-wide defensive stats for ranking...");
-  const teams = await fetchEspnTeams();
-  
-  // Fetch stats for all teams in parallel
-  const statsPromises = teams.map(async (team) => {
-    const stats = await fetchEspnTeamStats(team.id);
-    let dr = 0, stl = 0, blk = 0;
-    
-    if (stats && stats.categories) {
-      stats.categories.forEach((cat: any) => {
-        cat.stats.forEach((s: any) => {
-          switch (s.name) {
-            case 'avgDefensiveRebounds': dr = s.value; break;
-            case 'avgBlocks': blk = s.value; break;
-            case 'avgSteals': stl = s.value; break;
-          }
-        });
+  leagueStatsPromise = (async () => {
+    console.log("[ESPN API] Fetching league-wide defensive stats for ranking...");
+    try {
+      const teams = await fetchEspnTeams();
+      
+      // Fetch stats for all teams in parallel
+      const statsPromises = teams.map(async (team) => {
+        const stats = await fetchEspnTeamStats(team.id);
+        let dr = 0, stl = 0, blk = 0;
+        
+        if (stats && stats.categories) {
+          stats.categories.forEach((cat: any) => {
+            cat.stats.forEach((s: any) => {
+              switch (s.name) {
+                case 'avgDefensiveRebounds': dr = s.value; break;
+                case 'avgBlocks': blk = s.value; break;
+                case 'avgSteals': stl = s.value; break;
+              }
+            });
+          });
+        }
+        
+        return { id: team.id, dr, stl, blk };
       });
-    }
-    
-    return { id: team.id, dr, stl, blk };
-  });
 
-  leagueStatsCache = await Promise.all(statsPromises);
-  return leagueStatsCache;
+      const results = await Promise.all(statsPromises);
+      leagueStatsCache = results;
+      return results;
+    } catch (err) {
+      console.error("[ESPN API] Failed to fetch league defensive stats:", err);
+      leagueStatsPromise = null; // Allow retry on failure
+      return [];
+    }
+  })();
+
+  return leagueStatsPromise;
 };
 
 export const fetchOpponentContext = async (teamName: string, teamId?: string): Promise<OpponentContext> => {
